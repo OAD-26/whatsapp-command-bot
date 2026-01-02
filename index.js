@@ -1,1 +1,1 @@
-console.log("Bot starting...");
+console.log(new Date().toISOString(), "Bot starting...");
