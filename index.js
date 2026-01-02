@@ -1,3 +1,14 @@
+const fs = require('fs');
+const path = require('path');
+
+const commands = new Map();
+
+// Load all command files
+const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js'));
+for (const file of commandFiles) {
+    const command = require(`./commands/${file}`);
+    commands.set(command.name, command);
+}
 const { default: makeWASocket, useMultiFileAuthState } = require('@whiskeysockets/baileys');
 const fs = require('fs'); // to read files from your computer
 
