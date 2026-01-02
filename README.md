@@ -21,5 +21,5 @@ A WhatsApp bot that responds to commands such as `.menu`, `.ping`, and others.
 
 ### 1️⃣ Clone the repository
 ```bash
-git clone https://github.com/YOUR_USERNAME/whatsapp-command-bot.git
+git clone https://github.com/OAD-26/whatsapp-command-bot.git
 cd whatsapp-command-bot
