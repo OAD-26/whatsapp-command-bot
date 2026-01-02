@@ -137,3 +137,9 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# WhatsApp bot sensitive files
+session/
+sessions/
+auth_info/
+creds.json
