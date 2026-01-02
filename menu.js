@@ -2,6 +2,7 @@
 ╔═══════════════════╗
   *🤖 O.A.D *  
   Version: *3.0.5*
+  Release: *2026-01-02*
   by Professor O.A.DAVID
 ╚═══════════════════╝
 
@@ -17,7 +18,7 @@
 ║ ➤ .joke
 ║ ➤ .quote
 ║ ➤ .fact
-║ ➤ .weather <city>
+║ ➤ .weather <city> → shows the current weather in the city
 ║ ➤ .news
 ║ ➤ .attp <text>
 ║ ➤ .lyrics <song_title>
