@@ -1,4 +1,13 @@
-# whatsapp-command-bot
-A WhatsApp bot that responds to commands
 # WhatsApp Command Bot
-This bot responds to WhatsApp commands like .menu, .ping, etc.
+
+A simple WhatsApp bot that responds to commands.
+
+## 📌 Features
+- Responds to commands like `.menu`, `.ping`
+- Built using Node.js
+- Easy to customize and extend
+
+## 🚀 Usage
+1. Install dependencies
+   ```bash
+   npm install#
