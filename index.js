@@ -4,6 +4,11 @@ const fs = require('fs');
 const path = require('path');
 
 // ----------------------------
+// Configurable prefix
+// ----------------------------
+const prefix = '.'; // Change this to whatever prefix you want later
+
+// ----------------------------
 // Load Commands
 // ----------------------------
 const commands = new Map();
@@ -17,48 +22,56 @@ if (fs.existsSync('./commands')) {
 }
 
 // ----------------------------
-// Create WhatsApp Socket
+// WhatsApp Socket
 // ----------------------------
-const sock = makeWASocket({
-    printQRInTerminal: true // show QR code in terminal
-});
+async function startBot() {
+    const { state, saveCreds } = await useMultiFileAuthState('./auth_info');
 
-console.log(new Date().toISOString(), "Bot starting...");
+    const sock = makeWASocket({
+        auth: state,
+        printQRInTerminal: true,
+        browser: ['OAD BOT', 'Chrome', '1.0.0']
+    });
 
-// ----------------------------
-// Connection Update
-// ----------------------------
-sock.ev.on('connection.update', (update) => {
-    console.log(update);
+    // Auto save credentials
+    sock.ev.on('creds.update', saveCreds);
 
-    if (update.connection === 'close') {
-        console.log('Connection closed, reconnecting...');
-        // optionally call a reconnect function here
-    } else if (update.connection === 'open') {
-        console.log('✅ Bot is connected to WhatsApp!');
-    }
-});
-
-// ----------------------------
-// Listen for Messages
-// ----------------------------
-sock.ev.on('messages.upsert', async (m) => {
-    try {
-        const msg = m.messages[0];
-        if (!msg.message || msg.key.fromMe) return; // ignore empty/self-sent
-
-        const text = msg.message.conversation || msg.message.extendedTextMessage?.text;
-        if (!text) return;
-
-        const sender = msg.key.remoteJid;
-        const args = text.trim().split(/ +/);
-        const commandName = args.shift().toLowerCase().slice(1); // remove "!" prefix
-
-        // Execute command if it exists
-        if (text.startsWith('!') && commands.has(commandName)) {
-            await commands.get(commandName).execute(sock, msg, args.join(' '));
+    // Connection updates
+    sock.ev.on('connection.update', (update) => {
+        console.log(update);
+        if (update.connection === 'close') console.log('❌ Connection closed. Reconnect manually or restart bot.');
+        if (update.connection === 'open') console.log('✅ Bot is connected to WhatsApp!');
+        if (!state.creds.registered && update.qr) {
+            console.log('📱 Scan this QR code with WhatsApp:');
+            console.log(update.qr);
         }
-    } catch (err) {
-        console.error('Error processing message:', err);
-    }
-}); // <-- closes messages.upsert listener
+    });
+
+    // Listen for messages
+    sock.ev.on('messages.upsert', async (m) => {
+        try {
+            const msg = m.messages[0];
+            if (!msg.message || msg.key.fromMe) return;
+
+            const text = msg.message.conversation || msg.message.extendedTextMessage?.text;
+            if (!text) return;
+
+            const sender = msg.key.remoteJid;
+            const args = text.trim().split(/ +/);
+            const commandName = args.shift().toLowerCase().slice(prefix.length); // remove prefix
+
+            if (text.startsWith(prefix) && commands.has(commandName)) {
+                await commands.get(commandName).execute(sock, msg, args.join(' '));
+            }
+        } catch (err) {
+            console.error('Error processing message:', err);
+        }
+    });
+
+    return sock;
+}
+
+// ----------------------------
+// Start Bot
+// ----------------------------
+startBot().catch(err => console.error('❌ Failed to start bot:', err));
