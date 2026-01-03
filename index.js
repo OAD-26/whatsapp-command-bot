@@ -1,127 +1,160 @@
-// index.js
-const { default: makeWASocket, useMultiFileAuthState } = require('@whiskeysockets/baileys');
-const fs = require('fs');
-const path = require('path');
-<<<<<<< HEAD
-const qrcode = require('qrcode-terminal'); // for QR code display
-=
+// ===============================
+// REQUIRED MODULES
+// ===============================
+const {
+  default: makeWASocket,
+  useMultiFileAuthState,
+  DisconnectReason
+} = require("@whiskeysockets/baileys");
 
-// ----------------------------
-// Configurable prefix
-// ----------------------------
-const prefix = '.'; // Change this to whatever prefix you want later>>>>>>> 876ad078e591cdeb113ca7bec35fd0543dd8be27
-876ad078e591cdeb113ca7bec35fd0543dd8be27
-// ----------------------------
-// Load Commands
-// ----------------------------
-const commands = new Map();
-if (fs.existsSync('./commands')) {
-HEAD
-    const commandFiles = fs.readdirSync('./commands').filter(f => f.endsWith('.js'));
-    const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js'));
-876ad078e591cdeb113ca7bec35fd0543dd8be27
-    for (const file of commandFiles) {
-        const command = require(`./commands/${file}`);
-        commands.set(command.name, command);
-        console.log(`Loaded command: ${command.name}`);
+const fs = require("fs");
+const path = require("path");
+const pino = require("pino");
+
+// ===============================
+// DATA FOLDER
+// ===============================
+const dataPath = path.join(__dirname, "data");
+if (!fs.existsSync(dataPath)) fs.mkdirSync(dataPath);
+
+// ===============================
+// OWNER NUMBERS
+// ===============================
+const OWNER_NUMBERS = [
+  "2349138385352@s.whatsapp.net",
+  "2349110495140@s.whatsapp.net"
+];
+
+// ===============================
+// SET BOT AVATAR FUNCTION
+// ===============================
+async function setBotAvatar(sock) {
+  try {
+    const avatarPath = "./assets/bot_avatar.jpeg";
+    if (!fs.existsSync(avatarPath)) {
+      console.log("⚠️ Bot avatar not found");
+      return;
     }
+    const image = fs.readFileSync(avatarPath);
+    await sock.updateProfilePicture(sock.user.id, image);
+    console.log("✅ Bot avatar set successfully");
+  } catch (err) {
+    console.error("❌ Failed to set bot avatar:", err.message);
+  }
 }
 
-// ----------------------------
-HEAD
-// Create WhatsApp Socket
-// WhatsApp Socket
-876ad078e591cdeb113ca7bec35fd0543dd8be27
-// ----------------------------
+// ===============================
+// LOAD USERS DATA
+// ===============================
+const userDataFile = path.join(dataPath, "user.json");
+let users = {};
+if (fs.existsSync(userDataFile)) {
+  users = JSON.parse(fs.readFileSync(userDataFile));
+}
+
+// ===============================
+// LOAD COMMANDS
+// ===============================
+const commands = new Map();
+const commandsPath = path.join(__dirname, "commands");
+
+for (const file of fs.readdirSync(commandsPath)) {
+  if (file.endsWith(".js")) {
+    const cmd = require(path.join(commandsPath, file));
+    commands.set(cmd.name, cmd);
+  }
+}
+
+// ===============================
+// START BOT
+// ===============================
 async function startBot() {
-    const { state, saveCreds } = await useMultiFileAuthState('./auth_info');
+  const { state, saveCreds } = await useMultiFileAuthState("./auth_info");
 
-    const sock = makeWASocket({
-        auth: state,
-        printQRInTerminal: true,
-       HEAD
-        browser: ['MyBot', 'Chrome', '1.0.0']
-    });
+  const sock = makeWASocket({
+    logger: pino({ level: "silent" }),
+    auth: state
+  });
 
-    // Save credentials automatically
-    sock.ev.on('creds.update', saveCreds);
+  // ===============================
+  // CONNECTION UPDATE
+  // ===============================
+  sock.ev.on("connection.update", async (update) => {
+    const { connection, lastDisconnect } = update;
 
-    // ----------------------------
-    // Connection Updates
-    // ----------------------------
-    sock.ev.on('connection.update', (update) => {
-        console.log(update);
+    if (connection === "open") {
+      console.log("✅ OAD BOT connected to WhatsApp");
+      await setBotAvatar(sock);
+    }
 
-        if (update.connection === 'close') {
-            console.log('❌ Connection closed, try restarting bot');
-        } else if (update.connection === 'open') {
-            console.log('✅ Bot is connected to WhatsApp!');
-        }
+    if (connection === "close") {
+      const shouldReconnect =
+        lastDisconnect?.error?.output?.statusCode !==
+        DisconnectReason.loggedOut;
 
-        if (!state.creds.registered && update.qr) {
-            console.log('📱 Scan this QR code with WhatsApp:');
-            qrcode.generate(update.qr, { small: true });
-        }
-    });
+      console.log("❌ Connection closed. Reconnecting:", shouldReconnect);
+      if (shouldReconnect) startBot();
+    }
+  });
 
-    // ----------------------------
-    // Listen for Messages
-    // ------------------------------
+  sock.ev.on("creds.update", saveCreds);
 
-        browser: ['OAD BOT', 'Chrome', '1.0.0']
-    });
+  // ===============================
+  // MESSAGE HANDLER
+  // ===============================
+  sock.ev.on("messages.upsert", async ({ messages }) => {
+    const msg = messages[0];
+    if (!msg.key || !msg.message || msg.key.fromMe) return;
 
-    // Auto save credentials
-    sock.ev.on('creds.update', saveCreds);
+    // ===============================
+    // RUN GROUP PROTECTIONS FIRST
+    // ===============================
+    const antigroupCmd = commands.get("antigroup");
+    if (antigroupCmd && await antigroupCmd.checkMessage(sock, msg)) return;
 
-    // Connection updates
-    sock.ev.on('connection.update', (update) => {
-        console.log(update);
-        if (update.connection === 'close') console.log('❌ Connection closed. Reconnect manually or restart bot.');
-        if (update.connection === 'open') console.log('✅ Bot is connected to WhatsApp!');
-        if (!state.creds.registered && update.qr) {
-            console.log('📱 Scan this QR code with WhatsApp:');
-            console.log(update.qr);
-        }
-    });
+    // ===============================
+    // NORMAL COMMANDS
+    // ===============================
+    const text = msg.message.conversation || msg.message.extendedTextMessage?.text;
+    if (!text || !text.startsWith(".")) return;
 
-    // Listen for messages
-876ad078e591cdeb113ca7bec35fd0543dd8be27
-    sock.ev.on('messages.upsert', async (m) => {
-        try {
-            const msg = m.messages[0];
-            if (!msg.message || msg.key.fromMe) return;
+    const args = text.slice(1).trim().split(/ +/);
+    const commandName = args.shift().toLowerCase();
+    const command = commands.get(commandName);
+    if (!command) return;
 
-            const text = msg.message.conversation || msg.message.extendedTextMessage?.text;
-            if (!text) return;
+    // OWNER CHECK (for owner-only commands)
+    if (command.ownerOnly) {
+      const sender = msg.key.participant || msg.key.remoteJid;
+      if (!OWNER_NUMBERS.includes(sender)) {
+        return await sock.sendMessage(
+          msg.key.remoteJid,
+          { text: "❌ Owner only command." },
+          { quoted: msg }
+        );
+      }
+    }
 
-            const sender = msg.key.remoteJid;
-            const args = text.trim().split(/ +/);
-            HEAD
-            const commandName = args.shift().toLowerCase().slice(1); // remove "!" or "." prefix
-
-            if ((text.startsWith('!') || text.startsWith('.')) && commands.has(commandName)) {
-
-            const commandName = args.shift().toLowerCase().slice(prefix.length); // remove prefix
-
-            if (text.startsWith(prefix) && commands.has(commandName)) {
-            876ad078e591cdeb113ca7bec35fd0543dd8be27>>>>>>> 876ad078e591cdeb113ca7bec35fd0543dd8be27
-
-                await commands.get(commandName).execute(sock, msg, args.join(' '));
-            }
-        } catch (err) {
-            console.error('Error processing message:', err);
-        }
-    });
-
-    return sock;
+    // EXECUTE COMMAND
+    try {
+      await command.execute(sock, msg, args.join(" "));
+    } catch (err) {
+      console.error(err);
+      await sock.sendMessage(
+        msg.key.remoteJid,
+        { text: "❌ Command error." },
+        { quoted: msg }
+      );
+    }
+  });
 }
 
-// ----------------------------
-HEAD
-// Start the bot
+// ===============================
+// RUN BOT
+// ===============================
+startBot();
 
-// Start Bot
-876ad078e591cdeb113ca7bec35fd0543dd8be27
-// ----------------------------
-startBot().catch(err => console.error('❌ Failed to start bot:', err));
+
+
+
+

@@ -1,68 +1,61 @@
+// commands/play.js
 const yts = require("yt-search");
 const ytdl = require("ytdl-core");
-const fs = require("fs");
 const ffmpeg = require("fluent-ffmpeg");
-const ffmpegPath = require("ffmpeg-static");
+const fs = require("fs");
+const path = require("path");
 
-ffmpeg.setFfmpegPath(ffmpegPath);
+// Use system ffmpeg from Termux
+ffmpeg.setFfmpegPath("/data/data/com.termux/files/usr/bin/ffmpeg");
 
 module.exports = {
   name: "play",
+  description: "Download and send a song from YouTube",
   async execute(sock, msg, text) {
+    const jid = msg.key.remoteJid;
+
     if (!text) {
-      return sock.sendMessage(msg.key.remoteJid, {
-        text: "❌ Usage: !play <song name or link>"
+      return sock.sendMessage(jid, {
+        text: "❌ Usage: .play <song name>"
       }, { quoted: msg });
     }
 
     try {
-      let videoUrl = text;
-
-      // If not a URL, search YouTube
-      if (!text.startsWith("http")) {
-        const search = await yts(text);
-        const video = search.videos[0];
-        if (!video) {
-          return sock.sendMessage(msg.key.remoteJid, {
-            text: "❌ No results found."
-          }, { quoted: msg });
-        }
-        videoUrl = video.url;
+      // Search YouTube
+      const search = await yts(text);
+      const video = search.videos[0];
+      if (!video) {
+        return sock.sendMessage(jid, { text: "❌ No results found." }, { quoted: msg });
       }
 
-      const info = await ytdl.getInfo(videoUrl);
-      const title = info.videoDetails.title;
-      const filePath = `./tmp/${info.videoDetails.videoId}.mp3`;
+      const tmpDir = path.join(__dirname, "..", "tmp");
+      if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir);
 
-      await sock.sendMessage(msg.key.remoteJid, {
-        text: `🎵 Downloading: *${title}*`
-      }, { quoted: msg });
+      const filePath = path.join(tmpDir, `${video.videoId}.mp3`);
 
-      // Download and convert audio
-      ffmpeg(ytdl(videoUrl, { quality: "highestaudio" }))
+      await sock.sendMessage(jid, { text: `🎵 Downloading: ${video.title}` }, { quoted: msg });
+
+      // Download and convert to mp3
+      ffmpeg(ytdl(video.url, { quality: "highestaudio" }))
         .audioBitrate(128)
         .save(filePath)
         .on("end", async () => {
-          await sock.sendMessage(msg.key.remoteJid, {
+          await sock.sendMessage(jid, {
             audio: fs.readFileSync(filePath),
             mimetype: "audio/mpeg",
-            fileName: `${title}.mp3`
+            fileName: `${video.title}.mp3`
           }, { quoted: msg });
 
-          fs.unlinkSync(filePath); // remove temp file
+          fs.unlinkSync(filePath); // Delete temp file
         })
         .on("error", async (err) => {
           console.error(err);
-          await sock.sendMessage(msg.key.remoteJid, {
-            text: "❌ Error downloading song."
-          }, { quoted: msg });
+          await sock.sendMessage(jid, { text: "❌ Error downloading song." }, { quoted: msg });
         });
 
     } catch (err) {
       console.error(err);
-      await sock.sendMessage(msg.key.remoteJid, {
-        text: "❌ Failed to process your request."
-      }, { quoted: msg });
+      await sock.sendMessage(jid, { text: "❌ Failed to process your request." }, { quoted: msg });
     }
   }
 };
